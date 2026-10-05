@@ -35,6 +35,7 @@ jobs:
         run: |
           npm install @capacitor/core @capacitor/cli
           npm install @capacitor/android
+          npx cap init FlickIDE com.flickide.app --web-dir dist || true
           npx cap add android || echo "Android platform already exists"
           npx cap sync android
 
