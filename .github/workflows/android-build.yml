@@ -33,9 +33,11 @@ jobs:
 
       - name: Add Android Platform & Sync Capacitor
         run: |
+          npm install @capacitor/core @capacitor/cli
           npm install @capacitor/android
           npx cap add android || echo "Android platform already exists"
           npx cap sync android
+
 
       - name: Build Debug APK with Gradle
         run: |
