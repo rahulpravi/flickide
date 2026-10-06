@@ -1,6 +1,5 @@
 name: Build Android APK
 
-# Ithu main branch-il push cheyyumbolum, manual aayi trigger cheyyumbolum run aakum
 on:
   push:
     branches: [ main, master ]
@@ -22,14 +21,21 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm install
 
-      - name: Build Web App (Vite/React)
+      - name: Build Web App (Next.js Static Export)
         run: npm run build
 
-      - name: Setup Java (Required for Android)
+      - name: Setup Java (Temurin 21)
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
+
+      - name: Verify Java Version
+        run: |
+          java -version
+          javac -version
+          echo "JAVA_HOME=$JAVA_HOME"
 
       - name: Add Android Platform & Sync Capacitor
         run: |
@@ -39,11 +45,11 @@ jobs:
           npx cap add android || echo "Android platform already exists"
           npx cap sync android
 
-
       - name: Build Debug APK with Gradle
         run: |
           cd android
           chmod +x gradlew
+          ./gradlew clean
           ./gradlew assembleDebug
 
       - name: Upload APK as Artifact
