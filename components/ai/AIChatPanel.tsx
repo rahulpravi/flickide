@@ -146,12 +146,13 @@ export const AIChatPanel: React.FC = () => {
               <select
                 value={activeProvider}
                 onChange={(e) => setActiveProvider(e.target.value as AIProvider)}
-                className="bg-surface-300 text-[10px] font-semibold text-white border border-surface-border rounded px-1.5 py-0.5 focus:outline-none focus:border-brand-cyan capitalize cursor-pointer"
+                className="bg-surface-300 text-[10px] font-semibold text-white border border-surface-border rounded px-1.5 py-0.5 focus:outline-none focus:border-brand-cyan cursor-pointer"
               >
                 <option value="gemini">Google Gemini</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic Claude</option>
-                <option value="custom">Custom Provider</option>
+                <option value="groq">Groq (Free & Fast)</option>
+                <option value="openai">ChatGPT (OpenAI)</option>
+                <option value="grok">Grok (xAI)</option>
+                <option value="openrouter">OpenRouter</option>
               </select>
             </div>
             <span className="text-[10px] text-neutral-400 font-mono">
@@ -217,6 +218,26 @@ export const AIChatPanel: React.FC = () => {
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-3 no-scrollbar space-y-3">
+        {keys.length === 0 && (
+          <div className="bg-gradient-to-r from-purple-900/40 via-surface-200 to-brand-cyan/20 border border-purple-500/40 p-3 rounded-xl flex items-center justify-between space-x-3 shadow-lg">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white flex items-center space-x-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-brand-cyan animate-pulse" />
+                <span>1-Click AI Connect with Google</span>
+              </p>
+              <p className="text-[11px] text-neutral-300 mt-0.5">
+                Sign in with Google to unlock Gemini, Claude, and DeepSeek — no API key copy-pasting required!
+              </p>
+            </div>
+            <button
+              onClick={() => setKeyManagerOpen(true)}
+              className="px-3 py-1.5 bg-brand-cyan hover:bg-brand-accent text-black font-bold text-[11px] rounded-lg shrink-0 shadow-md transition-all active:scale-95 touch-manipulation"
+            >
+              Connect AI
+            </button>
+          </div>
+        )}
+
         {messages.map((m) => (
           <MessageItem key={m.id} message={m} />
         ))}

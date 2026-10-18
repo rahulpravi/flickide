@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import { getSettingFromDB, saveSettingToDB } from "../lib/db/indexedDB";
+import {
+  AIProvider,
+  AI_PROVIDERS,
+  generateAIResponse,
+} from "../lib/ai/multiAiService";
 
-export type AIProvider = "openai" | "anthropic" | "gemini" | "custom";
+export type { AIProvider };
 
 export interface APIKeyRecord {
   id: string;
@@ -72,10 +77,11 @@ interface APIRotationState {
 }
 
 export const DEFAULT_MODELS: Record<AIProvider, string> = {
-  openai: "gpt-4o-mini",
-  anthropic: "claude-3-5-sonnet-20241022",
-  gemini: "gemini-1.5-flash",
-  custom: "llama3-8b-8192",
+  gemini: AI_PROVIDERS.gemini.defaultModel,
+  openai: AI_PROVIDERS.openai.defaultModel,
+  grok: AI_PROVIDERS.grok.defaultModel,
+  groq: AI_PROVIDERS.groq.defaultModel,
+  openrouter: AI_PROVIDERS.openrouter.defaultModel,
 };
 
 export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
@@ -127,11 +133,14 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
     const trimmed = key.trim();
     if (!trimmed) return;
 
+    const providerName = AI_PROVIDERS[provider]?.name || provider.toUpperCase();
     const newRecord: APIKeyRecord = {
       id: `key-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       provider,
       key: trimmed,
-      name: name?.trim() || `${provider.toUpperCase()} Key #${get().keys.filter((k) => k.provider === provider).length + 1}`,
+      name:
+        name?.trim() ||
+        `${providerName} Key #${get().keys.filter((k) => k.provider === provider).length + 1}`,
       status: "active",
       cooldownUntil: null,
       usageCount: 0,
@@ -168,7 +177,7 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
           name:
             newKeyData.name?.trim() ||
             k.name ||
-            `${newKeyData.provider.toUpperCase()} Key`,
+            `${AI_PROVIDERS[newKeyData.provider]?.name || newKeyData.provider} Key`,
           baseUrl: newKeyData.baseUrl?.trim() || undefined,
           modelName: newKeyData.modelName?.trim() || undefined,
           status: "active" as const,
@@ -303,6 +312,10 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
       keys,
     } = get();
 
+    const fullPrompt = context
+      ? `--- ACTIVE FILE CONTEXT (${context.filename}) ---\n${context.content}\n--- END CONTEXT ---\n\n${prompt}`
+      : prompt;
+
     // Manual Model / Key Selection: bypass failover queue and force request through specific key
     if (selectedKeyId && selectedKeyId !== "auto") {
       const specificKey = keys.find((k) => k.id === selectedKeyId);
@@ -316,42 +329,25 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
       const targetModel = specificKey.modelName || DEFAULT_MODELS[specificKey.provider];
 
       try {
-        const response = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: specificKey.provider,
-            apiKey: specificKey.key,
-            model: targetModel,
-            baseUrl: specificKey.baseUrl,
-            prompt,
-            contextFile: context,
-          }),
-        });
-
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          const errorMessage =
-            data.error ||
-            data.message ||
-            (data.details?.error?.message ? data.details.error.message : undefined) ||
-            `Server responded with status ${response.status}`;
-
-          if (response.status === 429) {
-            markKeyCooldown(specificKey.id, 60, errorMessage);
-          } else if (response.status === 401 || response.status === 403) {
-            markKeyInvalid(specificKey.id, errorMessage);
-          }
-
-          throw new Error(errorMessage);
-        }
+        const reply = await generateAIResponse(
+          specificKey.provider,
+          specificKey.key,
+          fullPrompt,
+          undefined,
+          targetModel
+        );
 
         recordKeySuccess(specificKey.id);
         set({ isStreaming: false });
-        return data.reply;
+        return reply;
       } catch (err: any) {
         set({ isStreaming: false });
+        const errMsg = err?.message || String(err);
+        if (/429|rate|quota|exhaust/i.test(errMsg)) {
+          markKeyCooldown(specificKey.id, 60, errMsg);
+        } else if (/401|403|unauthoriz|invalid/i.test(errMsg)) {
+          markKeyInvalid(specificKey.id, errMsg);
+        }
         throw err;
       }
     }
@@ -360,7 +356,7 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
 
     if (providerKeys.length === 0) {
       throw new Error(
-        `No API keys configured for ${activeProvider.toUpperCase()}. Please add one in Key Manager.`
+        `No API keys configured for ${AI_PROVIDERS[activeProvider]?.name || activeProvider}. Please add one in Key Manager.`
       );
     }
 
@@ -379,11 +375,11 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
           );
           const waitSec = Math.max(1, Math.round(nearestCooldown / 1000));
           throw new Error(
-            `All ${activeProvider.toUpperCase()} keys are rate-limited or cooling down. Nearest key recovers in ${waitSec}s.`
+            `All ${AI_PROVIDERS[activeProvider]?.name || activeProvider} keys are rate-limited or cooling down. Nearest key recovers in ${waitSec}s.`
           );
         }
         throw new Error(
-          `All available ${activeProvider.toUpperCase()} keys failed. Check API Key validity.`
+          `All available ${AI_PROVIDERS[activeProvider]?.name || activeProvider} keys failed. Check API Key validity.`
         );
       }
 
@@ -392,51 +388,28 @@ export const useAPIRotationStore = create<APIRotationState>((set, get) => ({
       try {
         set({ isStreaming: true });
 
-        // Call our Next.js backend proxy route to avoid CORS
-        const response = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: activeProvider,
-            apiKey: candidateKey.key,
-            model: candidateKey.modelName || selectedModel,
-            baseUrl: candidateKey.baseUrl,
-            prompt,
-            contextFile: context,
-          }),
-        });
+        const reply = await generateAIResponse(
+          activeProvider,
+          candidateKey.key,
+          fullPrompt,
+          undefined,
+          candidateKey.modelName || selectedModel
+        );
 
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          const errorMessage =
-            data.error ||
-            data.message ||
-            (data.details?.error?.message ? data.details.error.message : undefined) ||
-            `Server responded with status ${response.status}`;
-
-          if (response.status === 429) {
-            // Rate limit hit - mark cooldown and retry with next key
-            console.warn(
-              `Key ${candidateKey.name} hit 429 Rate Limit. Initiating failover rotation...`
-            );
-            markKeyCooldown(candidateKey.id, 60, errorMessage);
-            continue; // Loop to next key
-          }
-
-          if (response.status === 401 || response.status === 403) {
-            markKeyInvalid(candidateKey.id, errorMessage);
-            continue; // Loop to next key
-          }
-
-          throw new Error(errorMessage);
-        }
-
-        // Key call succeeded!
         recordKeySuccess(candidateKey.id);
         set({ isStreaming: false });
-        return data.reply;
+        return reply;
       } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        if (/429|rate|quota|exhaust/i.test(errMsg)) {
+          console.warn(
+            `Key ${candidateKey.name} hit rate limit. Initiating failover rotation...`
+          );
+          markKeyCooldown(candidateKey.id, 60, errMsg);
+        } else if (/401|403|unauthoriz|invalid/i.test(errMsg)) {
+          markKeyInvalid(candidateKey.id, errMsg);
+        }
+
         if (attemptedKeyIds.size >= providerKeys.length) {
           set({ isStreaming: false });
           throw err;

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type NavTab = "files" | "code" | "ai" | "panel";
+export type NavTab = "files" | "code" | "ai" | "plugins" | "panel";
 export type PanelSubTab = "terminal" | "problems" | "debug";
 
 interface UIState {

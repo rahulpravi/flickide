@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FolderTree, Code2, Sparkles, TerminalSquare } from "lucide-react";
+import { FolderTree, Code2, Sparkles, TerminalSquare, Blocks } from "lucide-react";
 import { useUIStore, NavTab } from "../../stores/uiStore";
 
 interface NavItem {
@@ -18,6 +18,7 @@ export const BottomNav: React.FC = () => {
     { id: "files", label: "Files", icon: FolderTree },
     { id: "code", label: "Code", icon: Code2 },
     { id: "ai", label: "AI", icon: Sparkles },
+    { id: "plugins", label: "Plugins", icon: Blocks },
     { id: "panel", label: "Panel", icon: TerminalSquare },
   ];
 
@@ -35,7 +36,7 @@ export const BottomNav: React.FC = () => {
       aria-label="Bottom Navigation"
       className="fixed bottom-0 left-0 right-0 z-40 bg-surface-200/95 backdrop-blur-md border-t border-surface-border safe-bottom select-none"
     >
-      <div className="grid grid-cols-4 h-14 max-w-md mx-auto items-stretch px-2">
+      <div className="grid grid-cols-5 h-14 max-w-md mx-auto items-stretch px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;

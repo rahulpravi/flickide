@@ -10,6 +10,7 @@ export const QuickKeyRow: React.FC<QuickKeyRowProps> = ({ onInsertSymbol }) => {
   // Required keys: Tab { } ( ) [ ] ; " ' = < > /
   const keys = [
     { label: "Tab", insert: "\t" },
+    { label: "Fmt", insert: "__ACTION_FORMAT__" },
     { label: "{", insert: "{" },
     { label: "}", insert: "}" },
     { label: "(", insert: "(" },
@@ -34,14 +35,18 @@ export const QuickKeyRow: React.FC<QuickKeyRowProps> = ({ onInsertSymbol }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Trigger custom event for CodeMirror
-    const event = new CustomEvent("flickide:insert-key", {
-      detail: { symbol },
-    });
-    window.dispatchEvent(event);
+    if (symbol === "__ACTION_FORMAT__") {
+      window.dispatchEvent(new CustomEvent("flickide:format-doc"));
+    } else {
+      // Trigger custom event for CodeMirror
+      const event = new CustomEvent("flickide:insert-key", {
+        detail: { symbol },
+      });
+      window.dispatchEvent(event);
 
-    if (onInsertSymbol) {
-      onInsertSymbol(symbol);
+      if (onInsertSymbol) {
+        onInsertSymbol(symbol);
+      }
     }
 
     // Touch haptic
