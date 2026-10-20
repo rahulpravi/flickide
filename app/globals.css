@@ -54,3 +54,65 @@ textarea {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ========================================================
+   CodeMirror Mobile Horizontal Swiping & Scrolling Engine
+   ======================================================== */
+
+/* Allow full horizontal and vertical pan gestures inside editor */
+.cm-editor,
+.cm-scroller,
+.cm-content,
+#quick-key-row {
+  touch-action: pan-x pan-y !important;
+}
+
+/* Ensure editor scroller container allows true horizontal overflow */
+.cm-editor {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+}
+
+.cm-scroller {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  max-width: 100% !important;
+}
+
+/* Sticky line number gutter remains stationary on horizontal swipe */
+.cm-gutters {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 10 !important;
+}
+
+/* Natural code formatting when line wrapping is OFF (IDE default) */
+.cm-editor:not(.cm-lineWrapping) .cm-content {
+  min-width: max-content !important;
+  white-space: pre !important;
+}
+
+.cm-editor:not(.cm-lineWrapping) .cm-line {
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+/* Sleek subtle horizontal scrollbar for mobile swipe navigation */
+.cm-scroller::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cm-scroller::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+.cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 210, 255, 0.5);
+}
+

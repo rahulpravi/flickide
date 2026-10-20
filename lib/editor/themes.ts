@@ -258,18 +258,50 @@ const oneDarkRefinedTheme = EditorView.theme({
 export const oneDarkTheme: Extension = [oneDark, oneDarkRefinedTheme];
 
 // ==========================================
+// 5. UNIVERSAL MOBILE HORIZONTAL SCROLL THEME
+// ==========================================
+export const editorHorizontalScrollTheme = EditorView.theme({
+  "&": {
+    height: "100%",
+    width: "100%",
+    maxWidth: "100%",
+  },
+  ".cm-scroller": {
+    overflowX: "auto !important",
+    overflowY: "auto !important",
+    WebkitOverflowScrolling: "touch",
+    touchAction: "pan-x pan-y !important",
+    maxWidth: "100%",
+  },
+  ".cm-gutters": {
+    position: "sticky !important",
+    left: "0 !important",
+    zIndex: "10 !important",
+  },
+  ".cm-content": {
+    paddingBottom: "140px",
+  },
+});
+
+// ==========================================
 // HELPER TO GET THEME BY ID
 // ==========================================
 export function getEditorTheme(themeId: string): Extension {
+  let theme: Extension;
   switch (themeId) {
     case "theme-dracula":
-      return draculaTheme;
+      theme = draculaTheme;
+      break;
     case "theme-monokai":
-      return monokaiTheme;
+      theme = monokaiTheme;
+      break;
     case "theme-synthwave84":
-      return synthwaveTheme;
+      theme = synthwaveTheme;
+      break;
     case "theme-one-dark":
     default:
-      return oneDarkTheme;
+      theme = oneDarkTheme;
+      break;
   }
+  return [theme, editorHorizontalScrollTheme];
 }
