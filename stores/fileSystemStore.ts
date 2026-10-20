@@ -20,8 +20,8 @@ interface FileSystemState {
   initFileSystem: () => Promise<void>;
   setActiveFile: (path: string) => void;
   closeFile: (path: string) => void;
-  createFile: (name: string, parentPath: string, content?: string) => Promise<string>;
-  createFolder: (name: string, parentPath: string) => Promise<string>;
+  createFile: (nameOrPath: string, parentPathOrContent?: string, content?: string) => Promise<string>;
+  createFolder: (nameOrPath: string, parentPath?: string) => Promise<string>;
   deleteItem: (path: string) => Promise<void>;
   updateFileContent: (path: string, content: string) => Promise<void>;
   toggleFolder: (path: string) => void;
@@ -89,10 +89,55 @@ export const useFileSystemStore = create<FileSystemState>((set, get) => ({
     });
   },
 
-  createFile: async (name: string, parentPath: string, content: string = "") => {
+  createFile: async (
+    nameOrPath: string,
+    parentPathOrContent: string = "",
+    maybeContent?: string
+  ) => {
+    let name: string;
+    let parentPath: string;
+    let content: string;
+
+    if (maybeContent !== undefined) {
+      // 3-arg call: createFile(name, parentPath, content)
+      name = nameOrPath;
+      parentPath = parentPathOrContent || "/";
+      content = maybeContent;
+    } else if (nameOrPath.includes("/") || (parentPathOrContent && !parentPathOrContent.startsWith("/") && !parentPathOrContent.startsWith("."))) {
+      // 2-arg call: createFile("path/to/file.ext", content)
+      const normalized = normalizePath(nameOrPath).replace(/^\/+/, "");
+      const parts = normalized.split("/");
+      name = parts.pop() || normalized;
+      parentPath = parts.length > 0 ? `/${parts.join("/")}` : "/";
+      content = parentPathOrContent || "";
+
+      // Ensure intermediate parent folders exist
+      let currentDir = "";
+      for (const segment of parts) {
+        const prevDir = currentDir || "/";
+        currentDir = `${currentDir}/${segment}`;
+        if (!get().files[currentDir]) {
+          await get().createFolder(segment, prevDir);
+        }
+      }
+    } else {
+      // 2-arg call: createFile(name, parentPath)
+      name = nameOrPath;
+      parentPath = parentPathOrContent || "/";
+      content = "";
+    }
+
     const cleanParent = parentPath === "/" ? "" : normalizePath(parentPath);
     const fullPath = normalizePath(`${cleanParent}/${name}`);
     const size = calculateStringBytes(content);
+
+    // If file already exists, update content directly
+    const existing = get().files[fullPath];
+    if (existing && existing.type === "file") {
+      await get().updateFileContent(fullPath, content);
+      get().setActiveFile(fullPath);
+      return fullPath;
+    }
 
     const newFile: FileItem = {
       path: fullPath,
@@ -118,9 +163,39 @@ export const useFileSystemStore = create<FileSystemState>((set, get) => ({
     return fullPath;
   },
 
-  createFolder: async (name: string, parentPath: string) => {
+  createFolder: async (nameOrPath: string, maybeParentPath?: string) => {
+    let name: string;
+    let parentPath: string;
+
+    if (maybeParentPath !== undefined) {
+      name = nameOrPath;
+      parentPath = maybeParentPath || "/";
+    } else {
+      const normalized = normalizePath(nameOrPath).replace(/^\/+/, "");
+      const parts = normalized.split("/");
+      name = parts.pop() || normalized;
+      parentPath = parts.length > 0 ? `/${parts.join("/")}` : "/";
+
+      // Ensure intermediate parent folders exist
+      let currentDir = "";
+      for (const segment of parts) {
+        const prevDir = currentDir || "/";
+        currentDir = `${currentDir}/${segment}`;
+        if (!get().files[currentDir]) {
+          await get().createFolder(segment, prevDir);
+        }
+      }
+    }
+
     const cleanParent = parentPath === "/" ? "" : normalizePath(parentPath);
     const fullPath = normalizePath(`${cleanParent}/${name}`);
+
+    if (get().files[fullPath]) {
+      set((state) => ({
+        expandedFolders: { ...state.expandedFolders, [fullPath]: true },
+      }));
+      return fullPath;
+    }
 
     const newFolder: FileItem = {
       path: fullPath,

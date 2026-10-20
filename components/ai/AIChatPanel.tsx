@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Key, FileText, Trash2, Loader2, AlertCircle, ChevronDown } from "lucide-react";
+import { Send, Sparkles, Key, FileText, Trash2, Loader2, AlertCircle, ChevronDown, CheckCircle2 } from "lucide-react";
 import { useAPIRotationStore, AIProvider, DEFAULT_MODELS } from "../../stores/apiRotationStore";
 import { useFileSystemStore } from "../../stores/fileSystemStore";
 import { useUIStore } from "../../stores/uiStore";
 import { MessageItem } from "./MessageItem";
+import { extractAgentActions, executeAgentActions } from "../../lib/ai/agentParser";
 
 export const AIChatPanel: React.FC = () => {
   const {
@@ -21,12 +22,14 @@ export const AIChatPanel: React.FC = () => {
     keys,
   } = useAPIRotationStore();
 
-  const { activeFilePath, files } = useFileSystemStore();
+  const { activeFilePath, files, createFile, createFolder, updateFileContent, setActiveFile } =
+    useFileSystemStore();
   const { setKeyManagerOpen } = useUIStore();
 
   const [inputPrompt, setInputPrompt] = useState("");
   const [includeFileContext, setIncludeFileContext] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [agentNotice, setAgentNotice] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeFile = activeFilePath ? files[activeFilePath] : null;
@@ -44,6 +47,7 @@ export const AIChatPanel: React.FC = () => {
     if (!textToSend || isStreaming) return;
 
     setErrorMessage(null);
+    setAgentNotice(null);
 
     const contextPayload =
       includeFileContext && activeFile
@@ -65,6 +69,34 @@ export const AIChatPanel: React.FC = () => {
       const reply = await executeWithFailover(textToSend, contextPayload);
       const selectedKey = selectedKeyId !== "auto" ? keys.find((k) => k.id === selectedKeyId) : null;
       const providerUsed = selectedKey ? selectedKey.provider : activeProvider;
+
+      // 1. Intercept AI response & extract agent actions (<create_file>, <create_folder>)
+      const actions = extractAgentActions(reply);
+
+      // 2. Automatically execute actions in the IDE's file system store
+      if (actions.length > 0) {
+        try {
+          const results = await executeAgentActions(actions, {
+            files,
+            createFile,
+            createFolder,
+            updateFileContent,
+            setActiveFile,
+          });
+
+          const successfulCount = results.filter((r) => r.success).length;
+          if (successfulCount > 0) {
+            setAgentNotice(
+              `⚡ Agent autonomously created ${successfulCount} item(s) in workspace!`
+            );
+            setTimeout(() => setAgentNotice(null), 4500);
+          }
+        } catch (fsErr: any) {
+          console.error("Agent filesystem execution error:", fsErr);
+        }
+      }
+
+      // 3. Add AI message (MessageItem handles rendering action widgets in place of raw XML)
       addMessage({
         role: "assistant",
         content: reply,
@@ -77,10 +109,11 @@ export const AIChatPanel: React.FC = () => {
   };
 
   const quickPrompts = [
+    "⚡ Create a Todo App with HTML & CSS",
+    "⚡ Create a Counter component in JS",
     "Explain this file in detail",
     "Identify any bugs or performance issues",
     "Refactor and optimize this code",
-    "Add comments and documentation",
   ];
 
   const selectedKeyObj = selectedKeyId !== "auto" ? keys.find((k) => k.id === selectedKeyId) : null;
@@ -213,6 +246,14 @@ export const AIChatPanel: React.FC = () => {
               Open Key Manager to check keys or add backup
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Autonomous Agent Execution Notice */}
+      {agentNotice && (
+        <div className="bg-emerald-500/10 border-b border-emerald-500/30 px-3 py-2 flex items-center space-x-2 text-emerald-300 text-xs animate-fade-in shadow-inner">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+          <span className="font-medium text-[11px]">{agentNotice}</span>
         </div>
       )}
 

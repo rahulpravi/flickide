@@ -69,12 +69,16 @@ export function detectProviderFromKey(apiKey: string): AIProvider | null {
   return null;
 }
 
+import { FLICK_AGENT_SYSTEM_PROMPT } from "./agentParser";
+
+export { FLICK_AGENT_SYSTEM_PROMPT };
+
 // 2. Ella AI-yilekkum message ayakkunna unified function
 export async function generateAIResponse(
   provider: AIProvider,
   apiKey: string,
   prompt: string,
-  systemPrompt = "You are an expert mobile IDE AI coding assistant inside FlickIDE. Provide concise, clean, production-ready code. Enclose code changes in markdown code blocks.",
+  systemPrompt = FLICK_AGENT_SYSTEM_PROMPT,
   customModel?: string
 ): Promise<string> {
   const model = customModel?.trim() || AI_PROVIDERS[provider]?.defaultModel || "gemini-2.5-flash";
